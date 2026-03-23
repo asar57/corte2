@@ -104,10 +104,10 @@ def updateProductos(
                 prod["nombre"]=nom
                 prod["valor"]=valor
                 prod["existencias"]=existencia
-            return {
-                "mensaje": "Producto actualizado",
-                "producto": prod
-            }
+                return {
+                    "mensaje": "Producto actualizado",
+                    "producto": prod
+                }
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
 @app.delete("/producto/{cod}")
