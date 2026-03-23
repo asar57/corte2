@@ -1,4 +1,4 @@
-from fastapi import FastAPI,Body
+from fastapi import FastAPI,Body,HTTPException
 
 app=FastAPI()
 productos =[
@@ -47,6 +47,7 @@ def findProductos(cod:int):
     for prod in productos:
         if prod["codigo"]==cod:
             return prod
+    raise HTTPException(status_code=404, detail="Producto no encontrado")
 
 @app.get("/producto/")
 def findProductos2(nom:str):
@@ -57,6 +58,13 @@ def findProductos2(nom:str):
 
 @app.post("/producto/")
 def createProductos(codigo:int,nombre:str,valor:float,existencia:int):
+    
+    for prod in productos:
+        if prod["codigo"] == codigo:
+            raise HTTPException(status_code=400, detail="El producto ya existe")
+
+    if valor <= 0 or existencia <= 0:
+        raise HTTPException(status_code=400, detail="Valor y existencias deben ser mayores a cero")
     productos.append({
             "codigo":codigo,
             "nombre":nombre,
@@ -87,17 +95,25 @@ def updateProductos(
     cod:int,
     nom:str=Body(),
     valor:float=Body(),
-    existencia:int=Body()):
+    existencia:int=Body()
+    ):
+        if valor <= 0 or existencia <= 0:
+            raise HTTPException(status_code=400, detail="Valor y existencias deben ser mayores a cero")
         for prod in productos:
             if prod["codigo"]==cod:
                 prod["nombre"]=nom
                 prod["valor"]=valor
                 prod["existencias"]=existencia
-        return productos
+            return {
+                "mensaje": "Producto actualizado",
+                "producto": prod
+            }
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
 
 @app.delete("/producto/{cod}")
 def deleteProductos(cod:int):
     for prod in productos:
         if prod["codigo"]==cod:
             productos.remove(prod)
-    return productos
+            return {"mensaje": "Producto eliminado", "producto": prod}
+    raise HTTPException(status_code=404, detail="Producto no encontrado")
