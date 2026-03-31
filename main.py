@@ -1,119 +1,150 @@
-from fastapi import FastAPI,Body,HTTPException
+from fastapi import FastAPI, Body, HTTPException
+import csv
+import os
 
-app=FastAPI()
-productos =[
-    {
-     "codigo" : 1,
-     "nombre" : "esfero",
-     "valor"  : 3500,
-     "existencias" :10  
-    },
-    {
-    "codigo" : 2,
-    "nombre" : "cuaderno",
-    "valor"  : 5000,
-    "existencias" :15  
-    },
-    {
-    "codigo" : 3,
-    "nombre" : "lapiz",
-    "valor"  : 200,
-    "existencias" :12  
-    }
-]
+app = FastAPI()
+ARCHIVO = "productos.csv"
 
+#  Cargar CSV
+def cargar_productos():
+    lista = []
+    if not os.path.exists(ARCHIVO):
+        return lista
+
+    with open(ARCHIVO, newline="", encoding="utf-8") as archivo:
+        reader = csv.DictReader(archivo)
+        for fila in reader:
+            lista.append({
+                "codigo": int(fila["codigo"]),
+                "nombre": fila["nombre"],
+                "valor": float(fila["valor"]),
+                "existencias": int(fila["existencias"])
+            })
+    return lista
+
+#  Guardar CSV
+def guardar_productos(productos):
+    with open(ARCHIVO, mode="w", newline="", encoding="utf-8") as archivo:
+        campos = ["codigo", "nombre", "valor", "existencias"]
+        writer = csv.DictWriter(archivo, fieldnames=campos)
+
+        writer.writeheader()
+        writer.writerows(productos)
+
+#  Generar código automático
+def generar_codigo(productos):
+    if not productos:
+        return 1
+    return max(prod["codigo"] for prod in productos) + 1
+
+#  Ruta base
 @app.get("/")
-
 def mensaje():
-    return "bienvenido a FastAPI ingeniero"
+    return {"mensaje": "API de productos funcionando"}
 
-
-@app.get("/{nombre}/{codigo}")
-def mensaje2(nombre:str,codigo:int):
-    return f"bienvenido {nombre} codigo {codigo}"
-
-"""""
-@app.get("/uno/")
-def mensaje3(nombre:str,edad:int):
-    return f"nombre {nombre} edad {edad}"
-"""
-
+#  Listar todos
 @app.get("/productoall/")
 def listProductos():
-    return productos
+    return cargar_productos()
 
+#  Buscar por código
 @app.get("/producto/{cod}")
-def findProductos(cod:int):
+def buscar_codigo(cod: int):
+    productos = cargar_productos()
     for prod in productos:
-        if prod["codigo"]==cod:
+        if prod["codigo"] == cod:
             return prod
     raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-@app.get("/producto/")
-def findProductos2(nom:str):
+#  Buscar por nombre
+@app.get("/producto/nombre/{nom}")
+def buscar_nombre(nom: str):
+    productos = cargar_productos()
     for prod in productos:
-        if prod["nombre"]==nom:
+        if prod["nombre"].lower() == nom.lower():
             return prod
-        
+    raise HTTPException(status_code=404, detail="Producto no encontrado")
 
+#  Crear producto
 @app.post("/producto/")
-def createProductos(codigo:int,nombre:str,valor:float,existencia:int):
-    
-    for prod in productos:
-        if prod["codigo"] == codigo:
-            raise HTTPException(status_code=400, detail="El producto ya existe")
+def createProductos(
+    nombre: str = Body(...),
+    valor: float = Body(...),
+    existencias: int = Body(...)
+):
+    productos = cargar_productos()
 
-    if valor <= 0 or existencia <= 0:
-        raise HTTPException(status_code=400, detail="Valor y existencias deben ser mayores a cero")
-    productos.append({
-            "codigo":codigo,
-            "nombre":nombre,
-            "valor":valor,
-            "existencias":existencia
-        })
-    return productos
+    nombre = nombre.strip()
 
-@app.post("/producto2/")
-def createProductos2(
-    cod:int=Body(),
-    nom:str=Body(),
-    valor:float=Body(),
-    existencia:int=Body()
-    ):
-    productos.append(
-        {
-            "codigo":cod,
-            "nombre":nom,
-            "valor":valor,
-            "existencias":existencia
-        }
-    )
-    return productos
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre vacío")
 
+    if valor <= 0 or existencias <= 0:
+        raise HTTPException(status_code=400, detail="Valores deben ser mayores a 0")
+
+    codigo = generar_codigo(productos)
+
+    nuevo = {
+        "codigo": codigo,
+        "nombre": nombre,
+        "valor": valor,
+        "existencias": existencias
+    }
+
+    productos.append(nuevo)
+    guardar_productos(productos)
+
+    return {
+        "mensaje": "Producto creado",
+        "producto": nuevo
+    }
+
+#  Actualizar producto
 @app.put("/producto/{cod}")
 def updateProductos(
-    cod:int,
-    nom:str=Body(),
-    valor:float=Body(),
-    existencia:int=Body()
-    ):
-        if valor <= 0 or existencia <= 0:
-            raise HTTPException(status_code=400, detail="Valor y existencias deben ser mayores a cero")
-        for prod in productos:
-            if prod["codigo"]==cod:
-                prod["nombre"]=nom
-                prod["valor"]=valor
-                prod["existencias"]=existencia
-                return {
-                    "mensaje": "Producto actualizado",
-                    "producto": prod
-                }
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    cod: int,
+    nombre: str = Body(...),
+    valor: float = Body(...),
+    existencias: int = Body(...)
+):
+    productos = cargar_productos()
 
-@app.delete("/producto/{cod}")
-def deleteProductos(cod:int):
+    nombre = nombre.strip()
+
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre vacío")
+
+    if valor <= 0 or existencias <= 0:
+        raise HTTPException(status_code=400, detail="Valores deben ser mayores a 0")
+
     for prod in productos:
-        if prod["codigo"]==cod:
+        if prod["codigo"] == cod:
+            prod["nombre"] = nombre
+            prod["valor"] = valor
+            prod["existencias"] = existencias
+
+            guardar_productos(productos)
+
+            return {
+                "mensaje": "Producto actualizado",
+                "producto": prod
+            }
+
+    raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+#  Eliminar producto
+@app.delete("/producto/{cod}")
+def deleteProductos(cod: int):
+    productos = cargar_productos()
+
+    for prod in productos:
+        if prod["codigo"] == cod:
             productos.remove(prod)
-            return {"mensaje": "Producto eliminado", "producto": prod}
+            guardar_productos(productos)
+
+            return {
+                "mensaje": "Producto eliminado",
+                "producto": prod
+            }
+
     raise HTTPException(status_code=404, detail="Producto no encontrado")
