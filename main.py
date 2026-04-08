@@ -1,53 +1,43 @@
 from fastapi import FastAPI, Body, HTTPException
-import csv
+import json
 import os
 
 app = FastAPI()
-ARCHIVO = "productos.csv"
+ARCHIVO = "productos.json"
 
-#  Cargar CSV
+# Cargar JSON
 def cargar_productos():
-    lista = []
     if not os.path.exists(ARCHIVO):
-        return lista
+        return []
 
-    with open(ARCHIVO, newline="", encoding="utf-8") as archivo:
-        reader = csv.DictReader(archivo)
-        for fila in reader:
-            lista.append({
-                "codigo": int(fila["codigo"]),
-                "nombre": fila["nombre"],
-                "valor": float(fila["valor"]),
-                "existencias": int(fila["existencias"])
-            })
-    return lista
+    with open(ARCHIVO, "r", encoding="utf-8") as archivo:
+        try:
+            return json.load(archivo)
+        except json.JSONDecodeError:
+            return []
 
-#  Guardar CSV
+# Guardar JSON
 def guardar_productos(productos):
-    with open(ARCHIVO, mode="w", newline="", encoding="utf-8") as archivo:
-        campos = ["codigo", "nombre", "valor", "existencias"]
-        writer = csv.DictWriter(archivo, fieldnames=campos)
+    with open(ARCHIVO, "w", encoding="utf-8") as archivo:
+        json.dump(productos, archivo, indent=4, ensure_ascii=False)
 
-        writer.writeheader()
-        writer.writerows(productos)
-
-#  Generar código automático
+# Generar código automático
 def generar_codigo(productos):
     if not productos:
         return 1
     return max(prod["codigo"] for prod in productos) + 1
 
-#  Ruta base
+# Ruta base
 @app.get("/")
 def mensaje():
     return {"mensaje": "API de productos funcionando"}
 
-#  Listar todos
+# Listar todos
 @app.get("/productoall/")
 def listProductos():
     return cargar_productos()
 
-#  Buscar por código
+# Buscar por código
 @app.get("/producto/{cod}")
 def buscar_codigo(cod: int):
     productos = cargar_productos()
@@ -56,7 +46,7 @@ def buscar_codigo(cod: int):
             return prod
     raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-#  Buscar por nombre
+# Buscar por nombre
 @app.get("/producto/nombre/{nom}")
 def buscar_nombre(nom: str):
     productos = cargar_productos()
@@ -65,7 +55,7 @@ def buscar_nombre(nom: str):
             return prod
     raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-#  Crear producto
+# Crear producto
 @app.post("/producto/")
 def createProductos(
     nombre: str = Body(...),
@@ -99,7 +89,7 @@ def createProductos(
         "producto": nuevo
     }
 
-#  Actualizar producto
+# Actualizar producto
 @app.put("/producto/{cod}")
 def updateProductos(
     cod: int,
@@ -132,7 +122,7 @@ def updateProductos(
 
     raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-#  Eliminar producto
+# Eliminar producto
 @app.delete("/producto/{cod}")
 def deleteProductos(cod: int):
     productos = cargar_productos()
